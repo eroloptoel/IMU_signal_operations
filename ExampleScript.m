@@ -28,7 +28,7 @@ clc;                                % clear the command terminal
 %% Import and plot sensor data
 
 load('ExampleData.mat');
-
+abc
 figure('Name', 'Sensor Data');
 axis(1) = subplot(3,1,1);
 hold on;
