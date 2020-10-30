@@ -1,2 +1,2 @@
-# IMU_signal_operations
- signal processing
+# IMU_signal
+ Algorithms
