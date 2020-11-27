@@ -22,16 +22,11 @@ function euler = quatern2euler(q)
     theta = -atan(R(3,1,:) ./ sqrt(1-R(3,1,:).^2) );
     psi = atan2(R(2,1,:), R(1,1,:) );
          
-%     if  theta>=(1.396123775255304)& theta<=(1.570796326794897)
-%         roll=0;yaw=-2*(atan2(q(:,2),q(:,0)));end
-%      if theta>=(-1.570796326794897)& theta<=(-1.396123775255304) 
-%         roll=0;yaw=2*(atan2(q(:,2),q(:,0)));end
-   
-%      if theta>=(pi*0.4444)&theta<=(pi*0.5) 
-%         roll=0;yaw=-2*(atan2(q(:,2),q(:,0)));end
-%      if theta>=(-1*pi*0.5)&theta<=(-1*pi*0.4444) 
-%         roll=0;yaw=2*(atan2(q(:,2),q(:,0)));end
-    
+    if theta<=(pi*0.5) && theta>=(pi*0.4444)
+        roll=0;yaw=-2*(atan2(q(:,2),q(:,0)));end
+     if theta<=(-1*pi*0.5) && theta>=(-1*pi*0.4444)
+        roll=0;yaw=2*(atan2(q(:,2),q(:,0)));end
+  
 %  phi = asin(R(3,2,:)./sqrt(1+R(3,2,:).^2));theta = -asin(R(3,1,:)./sqrt(1+R(3,1,:).^2))psi = asin(R(2,1,:)./sqrt(1+R(2,1,:).^2));;      
           
  euler = [phi(1,:)' theta(1,:)' psi(1,:)'];

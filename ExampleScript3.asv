@@ -54,9 +54,9 @@ title('Accelerometer');
 hold off;
 axis(3) = subplot(3,1,3);
 hold on;
-plot(time, Magnetometer(:,1), 'r');%plot(time, xCorrected(:,1), '--r');
-plot(time, Magnetometer(:,2), 'g');%plot(time, xCorrected(:,2), '--g');
-plot(time, Magnetometer(:,3), 'b');%plot(time, xCorrected(:,3), '--b');
+plot(time, Magnetometer(:,1), 'r');
+plot(time, Magnetometer(:,2), 'g');
+plot(time, Magnetometer(:,3), 'b');
 legend('X', 'Y', 'Z');
 xlabel('Time (s)');
 ylabel('Flux (G)');
@@ -75,14 +75,14 @@ linkaxes(axis, 'x');
 
 %% Process sensor data through algorithm
 
-AHRS = MadgwickAHRS('SamplePeriod', 1/125, 'Beta', .010);
+AHRS = MadgwickAHRS('SamplePeriod', 1/125, 'Beta', 0.001);
 %AHRS = MahonyAHRS('SamplePeriod', 1/125, 'Kp', 0.001);
 
 %quaternion = zeros(length(time), 4);
 quaternion(1,:) = [1 0 0 0];%q(1)=1;q(2)=0;q(3)=0;q(4)=0;
 
 for t = 1:length(time)
-    AHRS.Update(Gyroscope(t,:) * (pi/180), Accelerometer(t,:), xCorrected(t,:));	% gyroscope units must be radians
+    AHRS.Update(Gyroscope(t,:) * (pi/180), Accelerometer(t,:), Magnetometer(t,:));	% gyroscope units must be radians
     quaternion(t, :) = AHRS.Quaternion;
 end
 
@@ -161,7 +161,7 @@ hold off;
 % plot(time, euler1(:,3), '--b');
 
 load('Quternion8.csv');load('Euler8.csv');
-%ans=quaternion(:,1)-Quternion8(:,1);% Magnetometer(:,2)-AllData8(:,7);
+%ans=quaternion(:,1)-Quternion8(:,1);% Magnetometer(:,2)-AllData_Update(:,7);
 figure('Name','Quaternions - Real and Madgwick');
 axis(6) = subplot(4,1,1);hold on;plot(quaternion(:,1), 'r');plot(Quternion8(:,1),'--b');title('Quaternions');%figure;
 axis(7) = subplot(4,1,2);hold on;plot(quaternion(:,2), 'r');plot(Quternion8(:,2),'--b');%figure;

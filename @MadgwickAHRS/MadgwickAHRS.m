@@ -9,9 +9,9 @@ classdef MadgwickAHRS < handle
 
     %% Public properties
     properties (Access = public)
-        SamplePeriod = 1/256;
+        SamplePeriod = 1/125;
         Quaternion = [1 0 0 0];     % output quaternion describing the Earth relative to the sensor
-        Beta = 1;               	% algorithm gain
+        Beta = .001;               	% algorithm gain
     end
 
     %% Public methods
@@ -25,22 +25,36 @@ classdef MadgwickAHRS < handle
                 end
             end;
         end
+   %------------------------------     
         function obj = Update(obj, Gyroscope, Accelerometer, Magnetometer)
             q = obj.Quaternion; % short name local variable for readability
-
+            %format long
+            
             % Normalise accelerometer measurement
             if(norm(Accelerometer) == 0), return; end	% handle NaN
-            Accelerometer = Accelerometer / norm(Accelerometer);	% normalise magnitude
-
+           % Accelerometer = Accelerometer / norm(Accelerometer);	% normalise magnitude
+              a1=Accelerometer(1)^2+Accelerometer(2)^2+Accelerometer(3)^2;
+              a2=sqrt(a1);
+              Accelerometer = Accelerometer /a2;
+            
             % Normalise magnetometer measurement
             if(norm(Magnetometer) == 0), return; end	% handle NaN
-            Magnetometer = Magnetometer / norm(Magnetometer);	% normalise magnitude
-
+        %   Magnetometer = Magnetometer / norm(Magnetometer);	% normalise magnitude
+              b1=Magnetometer(1)^2+Magnetometer(2)^2+Magnetometer(3)^2;
+              b2=sqrt(b1);
+              Magnetometer = Magnetometer /b2; 
+        
             % Reference direction of Earth's magnetic feild
-            h = quaternProd(q, quaternProd([0 Magnetometer], quaternConj(q)));
-            b = [0 norm([h(2) h(3)]) 0 h(4)];
-
-            % Gradient decent algorithm corrective step
+%             h = quaternProd(q, quaternProd([0 Magnetometer], quaternConj(q)));
+%             b = [0 norm([h(2) h(3)]) 0 h(4)];
+            
+            hx = (Magnetometer(1)*q(1)^2) - (2*q(1)*Magnetometer(2)*q(4)) + (2*q(1)*Magnetometer(3)*q(3)) + (Magnetometer(1)*q(2)*q(2)) + (2*q(2)*Magnetometer(2)*q(3)) + (2*q(2)*Magnetometer(3)*q(4)) - (Magnetometer(1)*q(3)*q(3)) - (Magnetometer(1)*q(4)*q(4));
+            hy = (2*q(1)*Magnetometer(1)*q(4)) + (Magnetometer(2)*q(1)*q(1)) - (2*q(1)*Magnetometer(3)* q(2)) + (2*q(2)*Magnetometer(1)*q(3)) - (Magnetometer(2)*q(2)*q(2)) + (Magnetometer(2)*q(3)*q(3)) + (2*q(3)*Magnetometer(3)*q(4)) - (Magnetometer(2)*q(4)*q(4));
+            
+            b(2) = sqrt(hx*hx + hy*hy);
+            b(4) = (-2*q(1)*Magnetometer(1)*q(3)) + (2*q(1)*Magnetometer(2)*q(2)) + (Magnetometer(3)*q(1)*q(1)) + (2*q(2)*Magnetometer(1)*q(4)) - (Magnetometer(3)*q(2)*q(2)) + (2*q(3)*Magnetometer(2)*q(4)) - (Magnetometer(3)*q(3)*q(3)) + (Magnetometer(3)*q(4)*q(4));
+                      
+%            Gradient decent algorithm corrective step
             F = [2*(q(2)*q(4) - q(1)*q(3)) - Accelerometer(1)
                 2*(q(1)*q(2) + q(3)*q(4)) - Accelerometer(2)
                 2*(0.5 - q(2)^2 - q(3)^2) - Accelerometer(3)
@@ -53,16 +67,39 @@ classdef MadgwickAHRS < handle
                 -2*b(4)*q(3),               2*b(4)*q(4),               -4*b(2)*q(3)-2*b(4)*q(1),       -4*b(2)*q(4)+2*b(4)*q(2)
                 -2*b(2)*q(4)+2*b(4)*q(2),	2*b(2)*q(3)+2*b(4)*q(1),	2*b(2)*q(2)+2*b(4)*q(4),       -2*b(2)*q(1)+2*b(4)*q(3)
                 2*b(2)*q(3),                2*b(2)*q(4)-4*b(4)*q(2),	2*b(2)*q(1)-4*b(4)*q(3),        2*b(2)*q(2)];
+            
+%             t1=2*q(4)*[2*(q(2)*q(4) - q(1)*q(3)) - Accelerometer(1)];
+%             t2=2*q(1)*[2*(q(1)*q(2) + q(3)*q(4)) - Accelerometer(2)];
+%             t3=-4*q(2)*[2*(0.5 - q(2)^2 - q(3)^2) - Accelerometer(3)];
+%             t4=2*b(4)*q(4)*[2*b(2)*(0.5 - q(3)^2 - q(4)^2) + 2*b(4)*(q(2)*q(4) - q(1)*q(3)) - Magnetometer(1)];
+%           t5=(2*b(2)*q(3)+2*b(4)*q(1))*(2*b(2)*(q(2)*q(3) - q(1)*q(4))+ 2*b(4)*(q(1)*q(2) + q(3)*q(4))-Magnetometer(2));
+%           t6=(2*b(2)*q(4)-4*b(4)*q(2))*(2*b(2)*(q(1)*q(3) + q(2)*q(4))+2*b(4)*(0.5 -q(2)^2 - q(3)^2) - Magnetometer(3));
+%             
             step = (J'*F);
-            step = step / norm(step);	% normalise step magnitude
+
+%             step = step / norm(step); 	% normalise step magnitude  % step = step /sqrt(step(1)^2+step(2)^2+step(3)^2+step(4)^2);
+              c1=step(1)^2+step(2)^2+step(3)^2+step(4)^2;
+              c2=sqrt(c1);
+              step = step /c2; 
 
             % Compute rate of change of quaternion
-            qDot = 0.5 * quaternProd(q, [0 Gyroscope(1) Gyroscope(2) Gyroscope(3)]) - obj.Beta * step';
-
+            % qDot = 0.5 * quaternProd(q, [0 Gyroscope(1) Gyroscope(2) Gyroscope(3)]) - obj.Beta * step';
+            
+            qDot(1)= 0.5 * ((-q(2)*Gyroscope(1)) - (q(3)*Gyroscope(2)) - (q(4)*Gyroscope(3)))- (obj.Beta * (step(1)));
+            qDot(2)= 0.5 * ((q(1)*Gyroscope(1)) + (q(3)*Gyroscope(3)) - (q(4)*Gyroscope(2)))- (obj.Beta * (step(2)));
+            qDot(3)= 0.5 * ((q(1)*Gyroscope(2)) - (q(2)*Gyroscope(3)) + (q(4)*Gyroscope(1)))- (obj.Beta * (step(3)));
+            qDot(4)= 0.5 * ((q(1)*Gyroscope(3)) + (q(2)*Gyroscope(2)) - (q(3)*Gyroscope(1)))- (obj.Beta * (step(4)));
+                
             % Integrate to yield quaternion
             q = q + qDot * obj.SamplePeriod;
-            obj.Quaternion = q / norm(q); % normalise quaternion
+%             obj.Quaternion = q / norm(q); % normalise quaternion
+              d1=q(1)^2+q(2)^2+q(3)^2+q(4)^2;
+              d2=sqrt(d1);
+              obj.Quaternion = q / d2;
         end
+        
+        %-----------------------------------------------------------------------------
+        
         function obj = UpdateIMU(obj, Gyroscope, Accelerometer)
             q = obj.Quaternion; % short name local variable for readability
 
@@ -86,6 +123,6 @@ classdef MadgwickAHRS < handle
             % Integrate to yield quaternion
             q = q + qDot * obj.SamplePeriod;
             obj.Quaternion = q / norm(q); % normalise quaternion
-        end
-    end
+         end
+       end
 end

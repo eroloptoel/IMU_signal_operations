@@ -28,7 +28,6 @@ clc;                                % clear the command terminal
 %% Import and plot sensor data
 
 load('ExampleData.mat');
-abc
 figure('Name', 'Sensor Data');
 axis(1) = subplot(3,1,1);
 hold on;
@@ -64,7 +63,7 @@ linkaxes(axis, 'x');
 
 %% Process sensor data through algorithm
 
-AHRS = MadgwickAHRS('SamplePeriod', 1/100, 'Beta', 0.1);
+AHRS = MadgwickAHRS('SamplePeriod', 1/300, 'Beta', .1);
 %AHRS = MahonyAHRS('SamplePeriod', 1/256, 'Kp', 0.5);
 
 quaternion = zeros(length(time), 4);
