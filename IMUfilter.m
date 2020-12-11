@@ -11,17 +11,16 @@ Accelerometer=AllData4(1:N,1:3);Gyroscope=AllData4(1:N,1:3);Magnetometer=AllData
 
 %-------Data
 %load 'rpy_9axis.mat' sensorData Fs;accelerometerReadings = sensorData.Acceleration;gyroscopeReadings = sensorData.AngularVelocity;   
-decim = 1;%decim = 40;
 load 'rpy_9axis' sensorData Fs;accelerometerReadings = sensorData.Acceleration;gyroscopeReadings = sensorData.AngularVelocity;magnetometerReadings = sensorData.MagneticField;
+decim = 100;%decim = 40;
 
 %-------Filter
-%fuse = imufilter('SampleRate',125,'DecimationFactor',decim) 
-%fuse = ahrsfilter('SampleRate',125,'DecimationFactor',decim);
-fuse = complementaryFilter('SampleRate',125);
+%fuse = imufilter('SampleRate',125,'DecimationFactor',decim); 
+%fuse = ahrsfilter('SampleRate',125,'DecimationFactor',decim);fuse = complementaryFilter('SampleRate',125);
 
 %q = fuse(accelerometerReadings,gyroscopeReadings,magnetometerReadings);
-q = fuse(Accelerometer(1:N,:),Gyroscope(1:N,:),Magnetometer(1:N,:));
-%q = fuse(accelerometerReadings,gyroscopeReadings);
+%q = fuse(Accelerometer(1:N,:),Gyroscope(1:N,:),Magnetometer(1:N,:));
+q = fuse(Accelerometer(1:N,:),Gyroscope(1:N,:));%q = fuse(accelerometerReadings,gyroscopeReadings);
 
 %time1 = (0:decim:size(accelerometerReadings,1)-1)/Fs;
 %plot(time1,eulerd(q,'ZYX','frame'))

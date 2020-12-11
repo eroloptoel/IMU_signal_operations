@@ -1,13 +1,10 @@
 addpath('quaternion_library'); clear all;close all;clc;
-load('AllData8.csv');%load('AllData_Double_deney2.csv');
-%load('ExampleData.mat');
+load('AllData8.csv');%load('AllData_Double_deney2.csv');%load('ExampleData.mat');
 
-% IDEAL Magnetometer Data----------------------------------------------------
-
-% acc = zeros(N,3);av = zeros(N,3);rng(1);
-% q = randrot(N,1); % uniformly distributed random rotations
-% imu = imuSensor('accel-mag');%imu2 = imuSensor('accel-gyro');
-% [~,x] = imu(acc,av,q);
+% SENSOR DATA ----------------------------------------------------
+% Ideal IMU Data
+% acc = zeros(N,3);av = zeros(N,3);rng(1);% q = randrot(N,1); % uniformly distributed random rotations
+% imu = imuSensor('accel-mag');%imu2 = imuSensor('accel-gyro');% [~,x] = imu(acc,av,q);
 
 format long
 N=7485;time=0:0.008:0.008*(N-1);time=time';AllData=AllData8;%xy =AllData(1:N,7:9);x=xy;%xy =Magnetometer(1:N,1:3);%A=x-y;xy =(-1)*xy;
@@ -18,16 +15,17 @@ Magnetometer(:,1)=AllData(:,7);Magnetometer(:,2)=AllData(:,8);Magnetometer(:,3)=
 
 % scatter3(Magnetometer(:,1),Magnetometer(:,2),Magnetometer(:,3));axis equal;title('Real Magnetometer Data');%figure;scatter3(xy(:,1),xy(:,2),xy(:,3));axis equal;title('Madgwick Magnetometer Data');
  
+% FILTERED -(SENSOR) DATA 
+% windowSize = 500; b = (1/windowSize)*ones(1,windowSize);a = 1;
+% y = filter(b,a,Gyroscope(:,:));Gyroscope=y;w = filter(b,a,Accelerometer(:,:));Accelerometer=w;z = filter(b,a,Magnetometer(:,:));Magnetometer=z;
 
 % CALIBRATED HSI-Magnetometer (Hard and Soft Iron Effects Cal)----------------------
- 
- [A,b1,expMFS]  = magcal(Magnetometer);xCorrected = (Magnetometer-b1)*A;%r=z-xCorrected;
+  [A,b1,expMFS]  = magcal(Magnetometer);xCorrected = (Magnetometer-b1)*A;%r=z-xCorrected;
  % [Axy,bxy,expMFSxy]  = magcal(t,'eye');xCorrected2 = (t-bxy)*Axy;%r=z-xCorrected;
  % [Adiag,bdiag,expMFSdiag] = magcal(t,'diag');xDiagCorrected = (t-bdiag)*Adiag;
  
-% PLOT Magnetometer -Calibrated ---------------------------------------------------
- 
-% figure;scatter3(xCorrected(:,1),xCorrected(:,2),xCorrected(:,3));axis equal;title('Magnetometer Data Calibrated');
+% Plot Magnetometer -Calibrated ---------------------------------------------------
+  %figure;scatter3(xCorrected(:,1),xCorrected(:,2),xCorrected(:,3));axis equal;title('Magnetometer Data Calibrated');
 
 %% SENSOR Data - Import and plot
 
@@ -61,32 +59,22 @@ legend('X', 'Y', 'Z');
 xlabel('Time (s)');
 ylabel('Flux (G)');
 title('Magnetometer');
-
-% plot(time, xCorrected(:,1), '--r');
-% plot(time, xCorrected(:,2), '--g');
-% plot(time, xCorrected(:,3), '--b');
-% legend('X', 'Y', 'Z');
-% xlabel('Time (s)');
-% ylabel('Flux (G)');
-% title('Magnetometer');
-
 hold off;
 linkaxes(axis, 'x');
 
 %% Process sensor data through algorithm
 
-AHRS = MadgwickAHRS('SamplePeriod', 1/125, 'Beta', .010);
-%AHRS = MahonyAHRS('SamplePeriod', 1/125, 'Kp', 0.001);
+AHRS = MadgwickAHRS('SamplePeriod', 1/125, 'Beta', .001);
+AHRS1 = MahonyAHRS('SamplePeriod', 1/125, 'Kp',.0001,'Ki',0.0003);
 
 %quaternion = zeros(length(time), 4);
 quaternion(1,:) = [1 0 0 0];%q(1)=1;q(2)=0;q(3)=0;q(4)=0;
 
 for t = 1:length(time)
-    AHRS.Update(Gyroscope(t,:) * (pi/180), Accelerometer(t,:), xCorrected(t,:));	% gyroscope units must be radians
-    quaternion(t, :) = AHRS.Quaternion;
+    AHRS.Update(Gyroscope(t,:) * (pi/180), Accelerometer(t,:), xCorrected(t,:));quaternion(t, :) = AHRS.Quaternion;	% gyroscope units must be radians
+    AHRS1.Update(Gyroscope(t,:) * (pi/180), Accelerometer(t,:), xCorrected(t,:));quaternion1(t, :) = AHRS1.Quaternion;
 end
-
-%% PLOT algorithm output as Euler angles
+%% PLOT algorithm output (as Euler angles)
 
 % The first and third Euler angles in the sequence (phi and psi) become
 % unreliable when the middle angles of the sequence (theta) approaches ±90
@@ -94,24 +82,18 @@ end
 % See: http://en.wikipedia.org/wiki/Gimbal_lock
 
 euler = quatern2euler(quaternConj(quaternion)) * (180/pi);	% use conjugate for sensor frame relative to Earth and convert to degrees.
-%euler1= quat2eul(quaternion);
-
+euler1 = quatern2euler(quaternConj(quaternion1)) * (180/pi); %euler1= quat2eul(quaternion);euler = [phi theta psi]
+ 
 % GYRO INTEGRATION
-% Velocity/Distance: a = acceleration_vector; t = time_vector; v = cumtrapz(t, a); c = cumtrapz(t, v);
-% euler1(:,1)=cumtrapz(time, Gyroscope(:,1));euler1(:,2)=cumtrapz(time, Gyroscope(:,2));euler1(:,3)=cumtrapz(time, Gyroscope(:,3));
+%Velocity/Distance: a = acceleration_vector; t = time_vector; v = cumtrapz(t, a); c = cumtrapz(t, v);
+%euler1(:,1)=cumtrapz(time, Gyroscope(:,1));euler1(:,2)=cumtrapz(time, Gyroscope(:,2));euler1(:,3)=cumtrapz(time, Gyroscope(:,3));
 
-% figure('Name', 'Euler Angles');
-% hold on;
-% plot(time, euler(:,1), 'r');
-% plot(time, euler(:,2), 'g');
-% plot(time, euler(:,3), 'b');
-
-figure('Name', 'Euler Quaternion');
+figure('Name', 'Euler Angles');
 axis(4) = subplot(2,1,1);
 hold on;
-plot(time, euler(:,1), 'r');
-plot(time, euler(:,2), 'g');
-plot(time, euler(:,3), 'b'); 
+plot(time, euler(:,1), 'r'); plot(time, euler1(:,1), '--r');
+plot(time, euler(:,2), 'g'); plot(time, euler1(:,2), '--g');
+plot(time, euler(:,3), 'b'); plot(time, euler1(:,3), '--b');% plot(time, euler(:,4),'--c');plot(time, euler(:,5),'--m');
 
 title('Euler angles');
 xlabel('Time (s)');
@@ -119,58 +101,37 @@ ylabel('Angle (deg)');
 legend('\phi', '\theta', '\psi');
 hold off;
 
-%--SINGL ANALYSIS-quaternion
-
-% a=0;b=0;c=0;axx=0;bxx=0;cxx=0;
-% ax=quaternion(:,1).^2+quaternion(:,4).^2;
-% bx=quaternion(:,2).*quaternion(:,4)+quaternion(:,1).*quaternion(:,3);
-% cx=quaternion(:,1).^2+quaternion(:,2).^2;
-% 
-% for i=1:7485
-%     if ax(i,1)>=0.45 & ax(i,1)<=.55%ax(i,1)=0.5%
-%         a=a+1;end
-%     if bx(i,1)>=0.45 & bx(i,1)<=.55%bx(i,1)>=0.5%
-%         b=b+1;end
-%     if cx(i,1)>=0.45 & cx(i,1)<=.55%cx(i,1)==0.5%
-%         c=c+1;end
-%     end
-% axx=find(ax>=0.45 & ax<=.55);bxx=find(bx>=0.45 & bx<=.55);cxx=find(cx>=0.45 & cx<=.55);
-% 
-% plot(time, ax, '--r');
-% plot(time, bx, '--b');
-% plot(time, cx, '--g');
-% hold off;
-
-%%-----TF = isinf(euler(:,1));
-
 axis(5) = subplot(2,1,2);
 hold on;
-plot(time, quaternion(:,1), 'y');
-plot(time, quaternion(:,2), 'r');
-plot(time, quaternion(:,3), 'g'); 
-plot(time, quaternion(:,4), 'b'); 
+plot(time, quaternion(:,1), 'y');plot(time, quaternion1(:,1), '--y');
+plot(time, quaternion(:,2), 'r');plot(time, quaternion1(:,2), '--r');
+plot(time, quaternion(:,3), 'g');plot(time, quaternion1(:,3), '--g');
+plot(time, quaternion(:,4), 'b');plot(time, quaternion1(:,4), '--b'); 
 
 title('Quaternions');
 xlabel('Time (s)');
 ylabel('quaternion');
 legend('q1', 'q2', 'q3','q4');
 hold off;
+% 
+% figure('Name', 'Euler Angles');
+% hold on;
+% plot(time, phi, '--r');
+% plot(time, theta, '--g');
+% %plot(time, psi, '--b');%plot(time, psi1, '--c');
+% hold off
 
-% plot(time, euler1(:,1), '--r');
-% plot(time, euler1(:,2), '--g');
-% plot(time, euler1(:,3), '--b');
-
-load('Quternion8.csv');load('Euler8.csv');
-%ans=quaternion(:,1)-Quternion8(:,1);% Magnetometer(:,2)-AllData8(:,7);
-figure('Name','Quaternions - Real and Madgwick');
-axis(6) = subplot(4,1,1);hold on;plot(quaternion(:,1), 'r');plot(Quternion8(:,1),'--b');title('Quaternions');%figure;
-axis(7) = subplot(4,1,2);hold on;plot(quaternion(:,2), 'r');plot(Quternion8(:,2),'--b');%figure;
-axis(8) = subplot(4,1,3);hold on;plot(quaternion(:,3), 'r');plot(Quternion8(:,3),'--b');%figure;
-axis(9) = subplot(4,1,4);hold on;plot(quaternion(:,4), 'r');plot(Quternion8(:,4),'--b');hold off
-figure('Name', 'Euler Angles - Real and Madgwick');
-axis(10) = subplot(3,1,1);plot(euler(:,1), 'r');hold on;plot(Euler8(:,1),'--b');title('Eulers');%figure;
-axis(11) = subplot(3,1,2);plot(euler(:,2), 'r');hold on;plot(Euler8(:,2),'--b');%figure;
-axis(12) = subplot(3,1,3);plot(euler(:,3), 'r');hold on;plot(Euler8(:,3),'--b');%figure;
+% %% --------Comparisons
+% load('Quternion8.csv');load('Euler8.csv');
+% %ans=quaternion(:,1)-Quternion8(:,1);% Magnetometer(:,2)-AllData8(:,7);
+% figure('Name','Quaternions - Real and Madgwick');
+% axis(6) = subplot(4,1,1);hold on;plot(quaternion(:,1), 'r');plot(Quternion8(:,1),'--b');title('Quaternions');%figure;
+% axis(7) = subplot(4,1,2);hold on;plot(quaternion(:,2), 'r');plot(Quternion8(:,2),'--b');%figure;
+% axis(8) = subplot(4,1,3);hold on;plot(quaternion(:,3), 'r');plot(Quternion8(:,3),'--b');%figure;
+% axis(9) = subplot(4,1,4);hold on;plot(quaternion(:,4), 'r');plot(Quternion8(:,4),'--b');hold off
+% figure('Name', 'Euler Angles - Real and Madgwick');
+% axis(10) = subplot(3,1,1);plot(euler(:,1),'r');hold on;plot(Euler8(:,1),'--b');title('Eulers');%figure;
+% axis(11) = subplot(3,1,2);plot(euler(:,2),'r');hold on;plot(Euler8(:,2),'--b');%figure;
+% axis(12) = subplot(3,1,3);plot(euler(:,3),'r');hold on;plot(Euler8(:,3),'--b');%figure;
 
 %% End of script 
- 

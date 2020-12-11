@@ -1,0 +1,111 @@
+addpath('quaternion_library'); clear all;close all;clc;
+load('AllData8.csv');
+
+format long
+N=7485;time=0:0.008:0.008*(N-1);time=time';AllData=AllData8;%xy =AllData(1:N,7:9);x=xy;%xy =Magnetometer(1:N,1:3);%A=x-y;xy =(-1)*xy;
+
+Accelerometer(:,1)=AllData(:,1);Accelerometer(:,2)=AllData(:,2);Accelerometer(:,3)=AllData(:,3);%Accelerometer(:,1)=AllData(1:N,1);Accelerometer(:,2)=AllData(1:N,2);Accelerometer(:,3)=AllData(1:N,3);
+Gyroscope(:,1)=AllData(:,4); Gyroscope(:,2)=AllData(:,5); Gyroscope(:,3)=AllData(:,6); 
+Magnetometer(:,1)=AllData(:,7);Magnetometer(:,2)=AllData(:,8);Magnetometer(:,3)=AllData(:,9);%Gyroscope(1:3,1)=-0.48;Gyroscope(1:3,2)=-0.30;Gyroscope(1:3,2)=-0.06;
+
+% ----- Adjust for offsets
+  Gyro_x = Gyroscope(:,1)+ 0.0;                            %cal:34,2,4         % Subtract the offset from the raw gyro_x value
+  Gyro_y = Gyroscope(:,2)+ 0.0;                                             % Subtract the offset from the raw gyro_y value
+  Gyro_z = Gyroscope(:,3)+ 0.0;                                             % Subtract the offset from the raw gyro_z value
+
+  % ----- Calculate travelled angles
+%     ---------------------------
+%     Adjust Gyro_xyz signs for:
+%     ---------------------------
+%     Pitch (Nose - up) = +ve reading
+%     Roll (Right - wing down) = +ve reading
+%     Yaw (Clock - wise rotation)  = +ve reading
+  
+  Gyro_pitch=0;Gyro_roll=0;Gyro_yaw=0;
+  
+  Gyro_pitch = Gyro_pitch + Gyro_y .*1 ;           %Sensor_to_deg:0.000128       % Integrate the raw Gyro_y readings  
+  Gyro_roll = Gyro_roll + Gyro_x .*1;                                            % Integrate the raw Gyro_x readings
+  Gyro_yaw = Gyro_yaw + Gyro_z .*1;                                              % Integrate the raw Gyro_x readings
+
+  %----- Compensate pitch and roll for gyro yaw
+  Gyro_pitch = Gyro_roll .* sin(Gyro_x);         % Sensor_to_rad  deg2rad(0.000128)   % Transfer the roll angle to the pitch angle if the Z-axis has yawed
+  Gyro_roll = Gyro_pitch .* sin(Gyro_x);                                              % Transfer the pitch angle to the roll angle if the Z-axis has yawed
+
+  %----- Accelerometer angle calculations
+  Accel_total_vector = sqrt((Accelerometer(:,1).^2) + (Accelerometer(:,2).^2) + (Accelerometer(:,3).^2));   % Calculate the total (3D) vector
+  Accel_pitch = asin(Accelerometer(:,1)./Accel_total_vector);                         %Calculate the pitch angle
+  Accel_pitch = rad2deg(Accel_pitch);
+  Accel_roll = asin(Accelerometer(:,2)./Accel_total_vector);                         %Calculate the roll angle
+  Accel_roll = rad2deg(Accel_roll);
+  
+  %----- Zero any residual accelerometer readings
+  %-----
+%      Place the accelerometer on a level surface
+%      Adjust the following two values until the pitch and roll readings are zero
+%  
+  Accel_pitch = Accel_pitch;                                             %Accelerometer calibration value for pitch    -0.2
+  Accel_roll = Accel_roll;                                               %Accelerometer calibration value for roll     +1.1
+
+  %----- Gyro & accel have been synchronised
+    Gyro_pitch = Gyro_pitch .* 0.9996 + Accel_pitch .* 0.0004;        %Correct the drift of the gyro pitch angle with the accelerometer pitch angle    Set the gyro pitch angle equal to the accelerometer pitch angle
+    Gyro_roll = Gyro_roll .* 0.9996 + Accel_roll .* 0.0004;           %Correct the drift of the gyro roll angle with the accelerometer roll angle      Set the gyro roll angle equal to the accelerometer roll angle
+
+  % ----- Dampen the pitch and roll angles
+  Gyro_pitch_output =1;Gyro_roll_output =1;
+  Gyro_pitch_output = Gyro_pitch_output .* 0.9 + Gyro_pitch .* 0.1;   %Take 90% of the output pitch value and add 10% of the raw pitch value
+  Gyro_roll_output = Gyro_roll_output .* 0.9 + Gyro_roll .* 0.1;      %Take 90% of the output roll value and add 10% of the raw roll value
+  
+  % ----- Fix the pitch, roll, & signs
+%      MPU-9250 gyro and AK8963 magnetometer XY axes are orientated 90 degrees to each other
+%      which means that Mag_pitch equates to the Gyro_roll and Mag_roll equates to the Gryro_pitch
+% 
+%      The MPU-9520 and AK8963 Z axes point in opposite directions
+%      which means that the sign for Mag_pitch must be negative to compensate.
+%   
+  % ----- Magnetometer
+  Mag_pitch = deg2rad(-1*Gyro_roll_output) ;
+  Mag_roll = deg2rad(Gyro_pitch_output);
+
+  %[A,b1,expMFS]  = magcal(Magnetometer);Magnetometer = (Magnetometer-b1)*A;
+  
+  % ----- Apply the standard TILT formulas
+  Mag_x_hor = Magnetometer(:,1) .* cos(Mag_pitch) + Magnetometer(:,2) .* sin(Mag_roll) .* sin(Mag_pitch) - Magnetometer(:,3) .* cos(Mag_roll) .* sin(Mag_pitch);
+  Mag_y_hor = Magnetometer(:,2) .* cos(Mag_roll) + Magnetometer(:,3) .* sin(Mag_roll);
+
+  % ----- Dampen any data fluctuations
+  Mag_x_dampened=1;Mag_y_dampened=1;
+  Mag_x_dampened = Mag_x_dampened .* 0.9 + Mag_x_hor .* 0.1;
+  Mag_y_dampened = Mag_y_dampened .* 0.9 + Mag_y_hor .* 0.1;
+
+  % ----- Calculate EULERs+the heading
+    
+  phi1 = atan2(Accelerometer(:,2),Accelerometer(:,3)+Accelerometer(:,1)*0.015);%phi = phi*180/pi;
+  theta1 = atan(-1.*Accelerometer(:,1)./(Accelerometer(:,2).*sin(phi1)+Accelerometer(:,3).*cos(phi1)));
+  phi = rad2deg(phi1);theta = rad2deg(theta1);
+  
+  Heading = (atan2(Mag_x_dampened, Mag_y_dampened));  % Magnetic North
+  Heading = rad2deg(Heading);
+    
+  % ----- Correct for True North
+  %    Heading += Declination;                                   % Geographic North
+
+%   % ----- Allow for manupulation
+% c=0;d=0;
+%  for i=1:7485
+%      if (Heading(i,1)<0&& phi1(i)>0 && theta1(i) >0);    Heading(i,1) = -Heading(i,1);c=c+1;end
+%      if (Heading(i)>=360); Heading(i) = Heading(i)-360;d=d+1;end
+%  end
+%  Heading =Heading-150;
+ %----
+ 
+figure('Name', 'Euler Angles');
+hold on;
+plot(time, phi, 'r');
+plot(time, theta, 'g');
+plot(time, Heading, 'b');% plot(time, euler(:,4),'--c');plot(time, euler(:,5),'--m');
+
+title('Euler angles');
+xlabel('Time (s)');
+ylabel('Angle (deg)');
+legend('\phi', '\theta', '\psi');
+hold off

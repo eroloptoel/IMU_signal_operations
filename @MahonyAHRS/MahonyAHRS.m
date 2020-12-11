@@ -32,6 +32,7 @@ classdef MahonyAHRS < handle
                 end
             end;
         end
+ %-----------------------------------------------------------------------------------------------
         function obj = Update(obj, Gyroscope, Accelerometer, Magnetometer)
             q = obj.Quaternion; % short name local variable for readability
  
@@ -73,7 +74,8 @@ classdef MahonyAHRS < handle
             q = q + qDot * obj.SamplePeriod;
             obj.Quaternion = q / norm(q); % normalise quaternion
         end
-        function obj = UpdateIMU(obj, Gyroscope, Accelerometer)
+ %-----------------------------------------------------------------------------------------------
+          function obj = UpdateIMU(obj, Gyroscope, Accelerometer)
             q = obj.Quaternion; % short name local variable for readability
  
             % Normalise accelerometer measurement
